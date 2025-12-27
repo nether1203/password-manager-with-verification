@@ -1,25 +1,41 @@
-const passwords = [
-  { service: "Google", icon: "google", dots: "••••••••••••" },
-  { service: "Facebook", icon: "facebook", dots: "••••••••••••" },
-  { service: "Github", icon: "github", dots: "••••••••••••" },
-];
-
 function filterPasswords() {
   const searchTerm = document.getElementById("searchInput").value.toLowerCase();
   const items = document.querySelectorAll(".password-item");
-
-  items.forEach((item) => {
-    const serviceName = item
-      .querySelector(".service-name")
-      .textContent.toLowerCase();
-    if (serviceName.includes(searchTerm)) {
-      item.style.display = "flex";
-    } else {
-      item.style.display = "none";
-    }
-  });
 }
 
+// поточний email користувача
+let currentEmail = null;
+
+// ТЕСТ OTP – запит коду на пошту
+function testOtp() {
+  const email = prompt("Введіть email для OTP:");
+
+  if (!email) {
+    alert("Email обовʼязковий");
+    return;
+  }
+
+  currentEmail = email;
+
+  fetch("/generate-otp", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      console.log("OTP response:", data);
+      alert(data.message || "Код відправлено на email");
+    })
+    .catch((err) => {
+      console.error(err);
+      alert("Помилка надсилання OTP");
+    });
+}
+
+// Валідація поля коду (твоя функція, якщо була – можна залишити)
 function validateCode() {
   const code = document.getElementById("codeInput").value;
   const verifyBtn = document.getElementById("verifyBtn");
@@ -33,25 +49,52 @@ function validateCode() {
   }
 }
 
+// VERIFY – відправка коду на бекенд
 function verify() {
   const code = document.getElementById("codeInput").value;
 
-  if (code.length === 6 && /^\d+$/.test(code)) {
-    alert("Код перевірено! Доступ надано.");
-    document.getElementById("codeInput").value = "";
-  } else {
-    alert("Будь ласка, введіть 6-значний код");
+  if (!currentEmail) {
+    alert("Спочатку натисніть 'Тест OTP' і введіть email");
+    return;
   }
+
+  if (!(code.length === 6 && /^\d+$/.test(code))) {
+    alert("Будь ласка, введіть 6-значний код");
+    return;
+  }
+
+  fetch("/verify-otp", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email: currentEmail, otp: code }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      console.log("Verify response:", data);
+      if (data.success) {
+        alert("Код підтверджено! Тепер можна працювати з паролями.");
+        document.getElementById("codeInput").value = "";
+        // тут пізніше викличеш loadPasswords() коли зробимо збереження паролів
+      } else {
+        alert(data.error || "Невірний код");
+      }
+    })
+    .catch((err) => {
+      console.error(err);
+      alert("Помилка перевірки, дивись консоль");
+    });
 }
 
+// Cancel – просто очищення поля
 function cancel() {
   document.getElementById("codeInput").value = "";
   alert("Скасовано");
 }
 
-function showAddPassword() {
-  alert("Функція додавання нового паролю буде реалізована");
-}
+// Далі залишаєш свої вже існуючі функції:
+// filterPasswords, showAddPassword, toggleTheme, window.addEventListener("DOMContentLoaded"...)
 
 function toggleTheme() {
   document.body.classList.toggle("dark-theme");

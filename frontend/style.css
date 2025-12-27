@@ -288,9 +288,24 @@ h2 {
   border-radius: 8px;
   font-size: 15px;
   text-align: center;
-  color: var(--color-gray-700);
+  color: black;
   margin-bottom: 20px;
   transition: border-color 0.2s;
+}
+
+.Otpbutton {
+  width: 100%;
+  max-width: 400px;
+  padding: 14px;
+  background-color: var(--color-teal-500);
+  color: var(--color-white);
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-bottom: 16px;
 }
 
 .code-input:focus {
