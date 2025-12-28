@@ -145,8 +145,47 @@ app.post("/verify-otp", (req, res) => {
   return res.json({ success: true, message: "OTP підтверджено" });
 });
 
-// ТУТ далі можна додати маршрути для паролів з requireOtp,
-// коли будеш готовий з MongoDB або з масивом в пам'яті.
+// ДОДАЙ ЦЕ ПІСЛЯ /verify-otp, ПЕРЕД // FUNCTIONS //
+
+// Збереження пароля (в пам'яті, поки без Mongo)
+const passwordsStore = {}; // { email: [{service, login, passwordEncrypted}] }
+
+app.post("/passwords", requireOtp, (req, res) => {
+  const { email, service, login, password, key } = req.body;
+
+  if (!service || !login || !password || !key) {
+    return res
+      .status(400)
+      .json({ error: "Потрібні service, login, password, key" });
+  }
+
+  const passwordEncrypted = encrypt(password, key);
+
+  if (!passwordsStore[email]) passwordsStore[email] = [];
+  const id = Date.now().toString();
+  passwordsStore[email].push({ id, service, login, passwordEncrypted });
+
+  res.json({ success: true, id });
+});
+
+app.post("/passwords/list", requireOtp, (req, res) => {
+  const { email } = req.body;
+  const list = passwordsStore[email] || [];
+  res.json(list.map((p) => ({ id: p.id, service: p.service, login: p.login })));
+});
+
+app.post("/passwords/decrypt", requireOtp, (req, res) => {
+  const { email, id, key } = req.body;
+  const record = passwordsStore[email]?.find((p) => p.id === id);
+  if (!record) return res.status(404).json({ error: "Не знайдено" });
+
+  try {
+    const password = decrypt(record.passwordEncrypted, key);
+    res.json({ password });
+  } catch {
+    res.status(400).json({ error: "Невірний ключ" });
+  }
+});
 
 // FUNCTIONS //
 function encrypt(data, key) {

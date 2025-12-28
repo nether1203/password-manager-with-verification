@@ -1,118 +1,197 @@
-function filterPasswords() {
-  const searchTerm = document.getElementById("searchInput").value.toLowerCase();
-  const items = document.querySelectorAll(".password-item");
+let currentEmail = "";
+let allPasswords = [];
+
+function showStep(stepId) {
+  document.querySelectorAll(".step").forEach((s) => {
+    s.style.display = "none";
+  });
+  document.getElementById(stepId).style.display = "block";
+  if (stepId === "step3")
+    document.getElementById("pageTitle").textContent = "🔑 Ваші паролі";
+  if (stepId === "step1")
+    document.getElementById("pageTitle").textContent = "🔐 Введіть email";
 }
 
-// поточний email користувача
-let currentEmail = null;
+// 👉 СТАРТ - показати email форму
+showStep("step1");
 
-// ТЕСТ OTP – запит коду на пошту
-function testOtp() {
-  const email = prompt("Введіть email для OTP:");
-
-  if (!email) {
-    alert("Email обовʼязковий");
-    return;
-  }
-
-  currentEmail = email;
+function generateOtp() {
+  const email = document.getElementById("emailInput").value;
+  if (!email) return alert("Введіть email!");
 
   fetch("/generate-otp", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   })
     .then((res) => res.json())
     .then((data) => {
-      console.log("OTP response:", data);
-      alert(data.message || "Код відправлено на email");
+      if (data.success) {
+        currentEmail = email;
+        document.getElementById("emailDisplay").textContent = email;
+        showStep("step2");
+      } else alert(data.error || "Помилка");
     })
-    .catch((err) => {
-      console.error(err);
-      alert("Помилка надсилання OTP");
-    });
+    .catch((err) => alert("Сервер не відповідає"));
 }
 
-// Валідація поля коду (твоя функція, якщо була – можна залишити)
-function validateCode() {
-  const code = document.getElementById("codeInput").value;
-  const verifyBtn = document.getElementById("verifyBtn");
-
-  if (code.length === 6 && /^\d+$/.test(code)) {
-    verifyBtn.style.opacity = "1";
-    verifyBtn.style.cursor = "pointer";
-  } else {
-    verifyBtn.style.opacity = "0.7";
-    verifyBtn.style.cursor = "not-allowed";
-  }
-}
-
-// VERIFY – відправка коду на бекенд
-function verify() {
-  const code = document.getElementById("codeInput").value;
-
-  if (!currentEmail) {
-    alert("Спочатку натисніть 'Тест OTP' і введіть email");
-    return;
-  }
-
-  if (!(code.length === 6 && /^\d+$/.test(code))) {
-    alert("Будь ласка, введіть 6-значний код");
-    return;
-  }
+function verifyOtp() {
+  const otp = document.getElementById("otpInput").value;
+  if (otp.length !== 6) return alert("Введіть 6 цифр!");
 
   fetch("/verify-otp", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email: currentEmail, otp: code }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: currentEmail, otp }),
   })
     .then((res) => res.json())
     .then((data) => {
-      console.log("Verify response:", data);
       if (data.success) {
-        alert("Код підтверджено! Тепер можна працювати з паролями.");
-        document.getElementById("codeInput").value = "";
-        // тут пізніше викличеш loadPasswords() коли зробимо збереження паролів
-      } else {
-        alert(data.error || "Невірний код");
-      }
-    })
-    .catch((err) => {
-      console.error(err);
-      alert("Помилка перевірки, дивись консоль");
+        loadPasswords();
+        showStep("step3");
+      } else alert(data.error || "Невірний код");
     });
 }
 
-// Cancel – просто очищення поля
-function cancel() {
-  document.getElementById("codeInput").value = "";
-  alert("Скасовано");
+function loadPasswords() {
+  fetch("/passwords/list", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: currentEmail }),
+  })
+    .then((res) => res.json())
+    .then((passwords) => {
+      allPasswords = passwords;
+      renderPasswords(passwords);
+    })
+    .catch(() => {
+      document.getElementById("passwordList").innerHTML =
+        '<div class="password-item"><div class="service-name">Помилка завантаження</div></div>';
+    });
 }
 
-// Далі залишаєш свої вже існуючі функції:
-// filterPasswords, showAddPassword, toggleTheme, window.addEventListener("DOMContentLoaded"...)
+function renderPasswords(passwords) {
+  const list = document.getElementById("passwordList");
+  if (!passwords || passwords.length === 0) {
+    list.innerHTML =
+      '<div class="password-item"><div class="service-name">Немає паролів</div></div>';
+    return;
+  }
+  list.innerHTML = passwords
+    .map(
+      (p) => `
+    <div class="password-item" style="align-items: center; gap: 10px;">
+      <div class="icon" style="background: linear-gradient(135deg, #${Math.floor(
+        Math.random() * 16777215
+      ).toString(16)}, #${Math.floor(Math.random() * 16777215).toString(16)})">
+        ${p.service[0]?.toUpperCase() || "?"}
+      </div>
+      <div class="password-info" style="flex: 1;">
+        <div class="service-name">${p.service}</div>
+        <div class="password-dots">${
+          p.login
+        } <span class="encrypted">[ЗАШИФРОВАНО]</span></div>
+      </div>
+      <input type="text" class="key-input" id="key-${p.id}" placeholder="Ключ">
+      <button onclick="decryptPassword('${
+        p.id
+      }')" style="padding: 8px 12px;">🔓</button>
+      <button onclick="deletePassword('${
+        p.id
+      }')" style="padding: 8px 12px;">🗑️</button>
+    </div>
+  `
+    )
+    .join("");
+}
 
+function filterPasswords() {
+  const search =
+    document.getElementById("searchInput")?.value.toLowerCase() || "";
+  const filtered = allPasswords.filter(
+    (p) =>
+      p.service.toLowerCase().includes(search) ||
+      p.login.toLowerCase().includes(search)
+  );
+  renderPasswords(filtered);
+}
+
+function decryptPassword(id) {
+  const key = document.getElementById(`key-${id}`)?.value;
+  if (!key) return alert("Введіть ключ!");
+  fetch("/passwords/decrypt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: currentEmail, id, key }),
+  })
+    .then((res) => res.json())
+    .then((data) =>
+      data.password
+        ? (document.querySelector(
+            `#key-${id}`
+          ).nextElementSibling.nextElementSibling.textContent = `Пароль: ${data.password}`)
+        : alert(data.error || "Помилка")
+    );
+}
+
+function savePassword() {
+  const service = document.getElementById("service").value;
+  const login = document.getElementById("login").value;
+  const password = document.getElementById("password").value;
+  const key = document.getElementById("key").value;
+  if (!service || !login || !password || !key)
+    return alert("Заповніть всі поля!");
+
+  fetch("/passwords", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: currentEmail,
+      service,
+      login,
+      password,
+      key,
+    }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.success) {
+        loadPasswords();
+        showStep("step3");
+        document.getElementById("service").value = "";
+        document.getElementById("login").value = "";
+        document.getElementById("password").value = "";
+        document.getElementById("key").value = "";
+      }
+    });
+}
+
+function deletePassword(id) {
+  fetch("/passwords/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: currentEmail, id }),
+  }).then(() => loadPasswords());
+}
+
+// Навігація
+function showAddPassword() {
+  showStep("step4");
+}
+function backToPasswords() {
+  showStep("step3");
+}
+function backToLogin() {
+  currentEmail = "";
+  showStep("step1");
+  document.getElementById("emailInput").value = "";
+}
+
+// Заглушки
 function toggleTheme() {
   document.body.classList.toggle("dark-theme");
-  const isDark = document.body.classList.contains("dark-theme");
-  localStorage.setItem("theme", isDark ? "dark" : "light");
-
-  const themeBtn = document.getElementById("themeBtn");
-  themeBtn.innerHTML = isDark
-    ? '<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>'
-    : '<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>';
 }
-
-window.addEventListener("DOMContentLoaded", () => {
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme === "dark") {
-    document.body.classList.add("dark-theme");
-    const themeBtn = document.getElementById("themeBtn");
-    themeBtn.innerHTML =
-      '<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
-  }
-});
+function validateCode() {}
+function resendOtp() {
+  generateOtp();
+}
