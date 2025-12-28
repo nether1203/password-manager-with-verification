@@ -80,26 +80,35 @@ function loadPasswords() {
 function renderPasswords(passwords) {
   const list = document.getElementById("passwordList");
   if (!list) return;
+
   if (!passwords || passwords.length === 0) {
     list.innerHTML =
       '<div class="password-item"><div class="service-name">Немає паролів</div></div>';
     return;
   }
+
   list.innerHTML = passwords
     .map(
       (p) => `
     <div class="password-item">
-      <div class="icon" style="background: #4b5563">
+      <div class="icon" style="background: linear-gradient(135deg, #${Math.floor(
+        Math.random() * 16777215
+      ).toString(16)}, #${Math.floor(Math.random() * 16777215).toString(16)})">
         ${p.service[0]?.toUpperCase() || "?"}
       </div>
       <div class="password-info">
         <div class="service-name">${p.service}</div>
-        <div class="password-dots">${
-          p.login
-        } <span class="encrypted">[ЗАШИФРОВАНО]</span></div>
+        <div class="password-dots">${p.login}</div>
+        <div class="encrypted">${
+          p.encrypted || "U2FsdGVkX1...🔒"
+        }</div> <!-- ЗАШИФРОВАНИЙ ТЕКСТ -->
       </div>
-      <input type="text" class="key-input" id="key-${p.id}" placeholder="Ключ">
-      <button onclick="decryptPassword('${p.id}')">🔓</button>
+      <input type="text" class="key-input" id="key-${
+        p.id
+      }" placeholder="Ключ розшифровки">
+      <button onclick="decryptPassword('${
+        p.id
+      }')" style="margin-left: 8px;">🔓 Розшифрувати</button>
       <button onclick="deletePassword('${p.id}')">🗑️</button>
     </div>
   `

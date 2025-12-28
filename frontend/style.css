@@ -404,20 +404,31 @@ body.dark-theme .icon {
 .step.active {
   display: block !important;
 } /* !important для перемоги */
+/* ДОДАЙ в style.css */
 .encrypted {
-  background: var(--color-gray-100);
-  color: var(--color-gray-500);
-  padding: 2px 6px;
-  border-radius: 4px;
+  background: linear-gradient(90deg, #f3f4f6, #e5e7eb);
+  color: #6b7280;
+  font-family: "Courier New", monospace;
   font-size: 12px;
-}
-.decrypted {
-  background: var(--color-teal-500);
-  color: white;
   padding: 4px 8px;
   border-radius: 6px;
-  font-weight: 500;
+  border: 1px solid #d1d5db;
+  margin-top: 4px;
+  display: block;
+  word-break: break-all;
+  max-width: 200px;
 }
+
+.decrypted {
+  background: linear-gradient(90deg, #10b981, #059669);
+  color: white;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
 .key-input {
   width: 120px;
   margin-left: 10px;

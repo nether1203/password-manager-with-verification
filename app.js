@@ -153,12 +153,24 @@ app.post("/passwords", requireOtp, async (req, res) => {
 });
 
 app.post("/passwords/list", requireOtp, async (req, res) => {
-  if (!db) return res.status(500).json({ error: "База даних не готова" });
   const { email } = req.body;
-  const passwords = await db.collection("passwords").find({ email }).toArray();
-  res.json(
-    passwords.map((p) => ({ id: p.id, service: p.service, login: p.login }))
-  );
+  let passwords;
+
+  if (useMemoryFallback || !db) {
+    passwords = passwordsStore[email] || [];
+  } else {
+    passwords = await db.collection("passwords").find({ email }).toArray();
+  }
+
+  // ✅ ДОДАЙ encrypted (перші 20 символів)
+  const list = passwords.map((p) => ({
+    id: p.id,
+    service: p.service,
+    login: p.login,
+    encrypted: p.passwordEncrypted.substring(0, 20) + "...", // U2FsdGVkX1...
+  }));
+
+  res.json(list);
 });
 
 app.post("/passwords/decrypt", requireOtp, async (req, res) => {
