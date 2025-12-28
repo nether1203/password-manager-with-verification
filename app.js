@@ -98,19 +98,18 @@ app.post("/generate-otp", (req, res) => {
   }
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  console.log(`🔥 ТЕСТ OTP для ${email}: ${otp}`);
+
   otpStore[email] = {
     code: otp,
     expiresAt: Date.now() + 5 * 60 * 1000,
   };
 
-  sendOtpEmail(email, otp)
-    .then(() =>
-      res.json({ success: true, message: `Код відправлено на ${email}` })
-    )
-    .catch((error) => {
-      console.error("Помилка відправки OTP:", error);
-      res.status(500).json({ error: "Не вдалося відправити код" });
-    });
+  res.json({
+    success: true,
+    message: `КОД: ${otp} (ТЕСТ)`,
+    otp: otp,
+  });
 });
 
 // OTP – перевірка
