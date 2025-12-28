@@ -1,66 +1,70 @@
-// LIBRARIES //
+// ✅ ПРАВИЛЬНИЙ ПОРЯДОК!
+require("dotenv").config();
+console.log("MONGODB_URI:", process.env.MONGODB_URI ? "✅ OK" : "❌ ПОРОЖНІЙ");
+console.log(
+  "SENDGRID_API_KEY:",
+  process.env.SENDGRID_API_KEY ? "✅ OK" : "❌ ПОРОЖНІЙ"
+);
+
 const CryptoJS = require("crypto-js");
 const cors = require("cors");
 const express = require("express");
 const bodyParser = require("body-parser");
-const nodemailer = require("nodemailer");
 const path = require("path");
-require("dotenv").config();
-console.log("EMAIL_USER =", process.env.EMAIL_USER);
-console.log("EMAIL_PASSWORD =", process.env.EMAIL_PASSWORD);
 
-// Create app //
+// SendGrid
+const sgMail = require("@sendgrid/mail");
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// MongoDB
+const { MongoClient } = require("mongodb");
+let client, db;
+
+async function connectDB() {
+  try {
+    if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI відсутній");
+    client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    db = client.db("passwords");
+    console.log("✅ MongoDB підключено");
+  } catch (error) {
+    console.error("❌ MongoDB помилка:", error.message);
+  }
+}
+
+// App
 const app = express();
 
-// 1) Парсимо JSON ТА urlencoded
+// Підключення БД
+connectDB();
+
+// Middleware
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
-
-// 2) CORS
 app.use(cors());
 
-// NODEMAILER //
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER, // ваша службова пошта
-    pass: process.env.EMAIL_PASSWORD, // пароль додатку
-  },
-});
-
-// OTP в пам'яті
+// OTP stores
 const otpStore = {};
-
-// СЕСІЇ OTP ПО EMAIL (доступ після перевірки коду)
-const sessions = {}; // { email: { verifiedUntil } }
+const sessions = {};
 
 function setVerified(email) {
-  sessions[email] = {
-    verifiedUntil: Date.now() + 30 * 60 * 1000, // 30 хвилин
-  };
+  sessions[email] = { verifiedUntil: Date.now() + 30 * 60 * 1000 };
 }
 
 function isVerified(email) {
   const s = sessions[email];
-  if (!s) return false;
-  return Date.now() < s.verifiedUntil;
+  return s && Date.now() < s.verifiedUntil;
 }
 
 function requireOtp(req, res, next) {
   const email = req.body.email;
-  if (!email) {
-    return res.status(400).json({ error: "Потрібен email" });
-  }
-  if (!isVerified(email)) {
-    return res
-      .status(401)
-      .json({ error: "Спочатку підтвердіть OTP для цього email" });
-  }
+  if (!email) return res.status(400).json({ error: "Потрібен email" });
+  if (!isVerified(email))
+    return res.status(401).json({ error: "Спочатку підтвердіть OTP" });
   next();
 }
 
-// API //
-// статичні файли
+// API
 app.use(express.static(path.join(__dirname, "frontend")));
 app.use("/img", express.static(path.join(__dirname, "img")));
 
@@ -68,17 +72,14 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "frontend", "index.html"));
 });
 
-// ШИФРУВАННЯ
+// Шифрування
 app.post("/encrypt", (req, res) => {
-  console.log("POST /encrypt body =", req.body);
   const { data, key } = req.body;
   const encrypted = encrypt(data, key);
   res.json({ encrypted });
 });
 
-// РОЗШИФРУВАННЯ
 app.post("/decrypt", (req, res) => {
-  console.log("POST /decrypt body =", req.body);
   const { encryptedData, key } = req.body;
   try {
     const decrypted = decrypt(encryptedData, key);
@@ -88,94 +89,82 @@ app.post("/decrypt", (req, res) => {
   }
 });
 
-// OTP – генерація
-app.post("/generate-otp", (req, res) => {
+// ✅ ТЕСТОВИЙ OTP (SendGrid після верифікації)
+app.post("/generate-otp", async (req, res) => {
   console.log("POST /generate-otp body =", req.body);
   const { email } = req.body;
 
-  if (!email) {
-    return res.status(400).json({ error: "Email обов'язковий" });
-  }
+  if (!email) return res.status(400).json({ error: "Email обов'язковий" });
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  console.log(`🔥 ТЕСТ OTP для ${email}: ${otp}`);
+  console.log(`🔥 SendGrid OTP для ${email}: ${otp}`);
 
-  otpStore[email] = {
-    code: otp,
-    expiresAt: Date.now() + 5 * 60 * 1000,
-  };
+  otpStore[email] = { code: otp, expiresAt: Date.now() + 5 * 60 * 1000 };
 
-  res.json({
-    success: true,
-    message: `КОД: ${otp} (ТЕСТ)`,
-    otp: otp,
-  });
+  try {
+    await sendOtpEmail(email, otp);
+    res.json({ success: true, message: `Код відправлено на ${email}` });
+  } catch (error) {
+    console.error("SendGrid помилка:", error);
+    res.json({ success: true, otp, message: `КОД: ${otp} (backup)` });
+  }
 });
 
-// OTP – перевірка
 app.post("/verify-otp", (req, res) => {
   const { email, otp } = req.body;
-
-  if (!email || !otp) {
+  if (!email || !otp)
     return res
       .status(400)
       .json({ success: false, error: "Email та OTP обов'язкові" });
-  }
 
   const record = otpStore[email];
-  if (!record) {
-    return res.status(400).json({
-      success: false,
-      error: "Немає згенерованого коду для цього email",
-    });
-  }
-
-  if (Date.now() > record.expiresAt) {
+  if (!record)
+    return res.status(400).json({ success: false, error: "Немає коду" });
+  if (Date.now() > record.expiresAt)
     return res.status(400).json({ success: false, error: "Код минув" });
-  }
-
-  if (record.code !== otp) {
+  if (record.code !== otp)
     return res.status(400).json({ success: false, error: "Невірний код" });
-  }
 
   delete otpStore[email];
-  setVerified(email); // даємо доступ на 30 хв для цього email
-
-  return res.json({ success: true, message: "OTP підтверджено" });
+  setVerified(email);
+  res.json({ success: true, message: "OTP підтверджено" });
 });
 
-// ДОДАЙ ЦЕ ПІСЛЯ /verify-otp, ПЕРЕД // FUNCTIONS //
+// ✅ MongoDB паролі З ПЕРЕВІРКОЮ db
+app.post("/passwords", requireOtp, async (req, res) => {
+  if (!db) return res.status(500).json({ error: "База даних не готова" });
 
-// Збереження пароля (в пам'яті, поки без Mongo)
-const passwordsStore = {}; // { email: [{service, login, passwordEncrypted}] }
-
-app.post("/passwords", requireOtp, (req, res) => {
   const { email, service, login, password, key } = req.body;
-
-  if (!service || !login || !password || !key) {
-    return res
-      .status(400)
-      .json({ error: "Потрібні service, login, password, key" });
-  }
+  if (!service || !login || !password || !key)
+    return res.status(400).json({ error: "Заповніть поля" });
 
   const passwordEncrypted = encrypt(password, key);
-
-  if (!passwordsStore[email]) passwordsStore[email] = [];
   const id = Date.now().toString();
-  passwordsStore[email].push({ id, service, login, passwordEncrypted });
 
+  await db.collection("passwords").insertOne({
+    email,
+    id,
+    service,
+    login,
+    passwordEncrypted,
+    createdAt: new Date(),
+  });
   res.json({ success: true, id });
 });
 
-app.post("/passwords/list", requireOtp, (req, res) => {
+app.post("/passwords/list", requireOtp, async (req, res) => {
+  if (!db) return res.status(500).json({ error: "База даних не готова" });
   const { email } = req.body;
-  const list = passwordsStore[email] || [];
-  res.json(list.map((p) => ({ id: p.id, service: p.service, login: p.login })));
+  const passwords = await db.collection("passwords").find({ email }).toArray();
+  res.json(
+    passwords.map((p) => ({ id: p.id, service: p.service, login: p.login }))
+  );
 });
 
-app.post("/passwords/decrypt", requireOtp, (req, res) => {
+app.post("/passwords/decrypt", requireOtp, async (req, res) => {
+  if (!db) return res.status(500).json({ error: "База даних не готова" });
   const { email, id, key } = req.body;
-  const record = passwordsStore[email]?.find((p) => p.id === id);
+  const record = await db.collection("passwords").findOne({ email, id });
   if (!record) return res.status(404).json({ error: "Не знайдено" });
 
   try {
@@ -186,30 +175,32 @@ app.post("/passwords/decrypt", requireOtp, (req, res) => {
   }
 });
 
-// FUNCTIONS //
+app.post("/passwords/delete", requireOtp, async (req, res) => {
+  if (!db) return res.status(500).json({ error: "База даних не готова" });
+  const { email, id } = req.body;
+  await db.collection("passwords").deleteOne({ email, id });
+  res.json({ success: true });
+});
+
+// Функції
 function encrypt(data, key) {
-  const cipherText = CryptoJS.AES.encrypt(data, key).toString();
-  return cipherText;
+  return CryptoJS.AES.encrypt(data, key).toString();
 }
 
 function decrypt(cipherText, key) {
   try {
     const bytes = CryptoJS.AES.decrypt(cipherText, key);
-    if (bytes.sigBytes > 0) {
-      const decryptedData = bytes.toString(CryptoJS.enc.Utf8);
-      return decryptedData;
-    } else {
-      throw new Error("Invalid key");
-    }
-  } catch (error) {
+    if (bytes.sigBytes > 0) return bytes.toString(CryptoJS.enc.Utf8);
+    throw new Error("Invalid key");
+  } catch {
     throw new Error("Invalid key");
   }
 }
 
 function sendOtpEmail(email, otp) {
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
+  const msg = {
     to: email,
+    from: process.env.EMAIL_USER,
     subject: "🔐 Ваш код верифікації",
     html: `
       <div style="font-family: Arial; padding: 20px; background: #f5f5f5;">
@@ -218,13 +209,18 @@ function sendOtpEmail(email, otp) {
           <div style="border:2px solid #208084; padding:20px; text-align:center; border-radius:8px;">
             <span style="font-size:32px; letter-spacing:4px; color:#208084;">${otp}</span>
           </div>
-          <p>Код дійсний 5 хвилин. Не передавайте його нікому.</p>
+          <p>Код дійсний 5 хвилин.</p>
         </div>
       </div>
     `,
   };
-  return transporter.sendMail(mailOptions);
+  return sgMail.send(msg);
 }
 
-// EXPORT //
+// Порт
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
+
 module.exports = app;
