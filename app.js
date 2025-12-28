@@ -1,24 +1,24 @@
-// ✅ ПРАВИЛЬНИЙ ПОРЯДОК!
 require("dotenv").config();
 console.log("MONGODB_URI:", process.env.MONGODB_URI ? "✅ OK" : "❌ ПОРОЖНІЙ");
 console.log(
   "SENDGRID_API_KEY:",
   process.env.SENDGRID_API_KEY ? "✅ OK" : "❌ ПОРОЖНІЙ"
 );
-
 const CryptoJS = require("crypto-js");
 const cors = require("cors");
 const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
-
-// SendGrid
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-// MongoDB
 const { MongoClient } = require("mongodb");
-let client, db;
+
+let client,
+  db,
+  useMemoryFallback = false;
+const passwordsStore = {};
+const otpStore = {};
+const sessions = {};
 
 async function connectDB() {
   try {
@@ -27,8 +27,10 @@ async function connectDB() {
     await client.connect();
     db = client.db("passwords");
     console.log("✅ MongoDB підключено");
+    useMemoryFallback = false; // ✅ MongoDB OK
   } catch (error) {
     console.error("❌ MongoDB помилка:", error.message);
+    useMemoryFallback = true; // ✅ Fallback
   }
 }
 
@@ -42,10 +44,6 @@ connectDB();
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
-
-// OTP stores
-const otpStore = {};
-const sessions = {};
 
 function setVerified(email) {
   sessions[email] = { verifiedUntil: Date.now() + 30 * 60 * 1000 };
@@ -162,12 +160,12 @@ app.post("/passwords/list", requireOtp, async (req, res) => {
     passwords = await db.collection("passwords").find({ email }).toArray();
   }
 
-  // ✅ ДОДАЙ encrypted (перші 20 символів)
+  // ✅ Зашифрований текст
   const list = passwords.map((p) => ({
     id: p.id,
     service: p.service,
     login: p.login,
-    encrypted: p.passwordEncrypted.substring(0, 20) + "...", // U2FsdGVkX1...
+    encrypted: (p.passwordEncrypted || "").substring(0, 20) + "...",
   }));
 
   res.json(list);
