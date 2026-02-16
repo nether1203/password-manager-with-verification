@@ -32,19 +32,7 @@
           <div class="header">
             <h1>🔑 Ваші паролі</h1>
           </div>
-
           <div class="search-box">
-            <svg
-              class="search-icon"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
-            </svg>
             <input
               type="text"
               class="search-input"
@@ -82,12 +70,28 @@
             class="search-input"
             placeholder="Логін"
           />
-          <input
-            type="password"
-            id="password"
-            class="search-input"
-            placeholder="Пароль"
-          />
+          <div class="password-wrapper">
+            <input
+              type="password"
+              id="password"
+              class="search-input"
+              placeholder="Пароль"
+              oninput="checkStrength()"
+            />
+            <button type="button" class="toggle-btn" onclick="togglePassword()">
+              👁️
+            </button>
+          </div>
+
+          <div class="strength-container" style="margin-bottom: 15px">
+            <div class="strength-meter">
+              <div id="strength-bar"></div>
+            </div>
+            <div
+              id="strength-text"
+              style="font-size: 12px; text-align: right; margin-top: 5px"
+            ></div>
+          </div>
           <input
             type="text"
             id="key"

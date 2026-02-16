@@ -2,7 +2,7 @@ require("dotenv").config();
 console.log("MONGODB_URI:", process.env.MONGODB_URI ? "✅ OK" : "❌ ПОРОЖНІЙ");
 console.log(
   "SENDGRID_API_KEY:",
-  process.env.SENDGRID_API_KEY ? "✅ OK" : "❌ ПОРОЖНІЙ"
+  process.env.SENDGRID_API_KEY ? "✅ OK" : "❌ ПОРОЖНІЙ",
 );
 const CryptoJS = require("crypto-js");
 const cors = require("cors");

@@ -92,7 +92,7 @@ function renderPasswords(passwords) {
       (p) => `
     <div class="password-item">
       <div class="icon" style="background: linear-gradient(135deg, #${Math.floor(
-        Math.random() * 16777215
+        Math.random() * 16777215,
       ).toString(16)}, #${Math.floor(Math.random() * 16777215).toString(16)})">
         ${p.service[0]?.toUpperCase() || "?"}
       </div>
@@ -103,15 +103,15 @@ function renderPasswords(passwords) {
           p.encrypted || "U2FsdGVkX1...🔒"
         }</div> <!-- ЗАШИФРОВАНИЙ ТЕКСТ -->
       </div>
-      <input type="text" class="key-input" id="key-${
+      <input type="password" class="key-input" id="key-${
         p.id
       }" placeholder="Ключ розшифровки">
-      <button onclick="decryptPassword('${
+      <button class="decrypt-btn" onclick="decryptPassword('${
         p.id
       }')" style="margin-left: 8px;">🔓 Розшифрувати</button>
-      <button onclick="deletePassword('${p.id}')">🗑️</button>
+      <button class="delete-btn" onclick="deletePassword('${p.id}')">🗑️</button>
     </div>
-  `
+  `,
     )
     .join("");
 }
@@ -121,7 +121,7 @@ function filterPasswords() {
   const q = document.getElementById("searchInput")?.value.toLowerCase() || "";
   const filtered = allPasswords.filter(
     (p) =>
-      p.service.toLowerCase().includes(q) || p.login.toLowerCase().includes(q)
+      p.service.toLowerCase().includes(q) || p.login.toLowerCase().includes(q),
   );
   renderPasswords(filtered);
 }
@@ -206,4 +206,61 @@ function validateCode() {
 }
 function toggleTheme() {
   document.body.classList.toggle("dark-theme");
+}
+function checkStrength() {
+  const password = document.getElementById("password").value;
+  const bar = document.getElementById("strength-bar");
+  const text = document.getElementById("strength-text");
+
+  let score = 0;
+
+  if (!password) {
+    bar.style.width = "0%";
+    text.innerHTML = "";
+    return;
+  }
+
+  // 1. Довжина більше 8
+  if (password.length > 8) score++;
+  // 2. Є цифри
+  if (/\d/.test(password)) score++;
+  // 3. Є малі літери
+  if (/[a-z]/.test(password)) score++;
+  // 4. Є великі літери
+  if (/[A-Z]/.test(password)) score++;
+  // 5. Є спецсимволи (!@#$%)
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  // Відображення (максимум 5 балів)
+  const percent = Math.min((score / 5) * 100, 100);
+  bar.style.width = percent + "%";
+
+  // Очищаємо класи кольорів
+  bar.className = "";
+
+  if (score <= 2) {
+    bar.classList.add("weak");
+    text.innerText = "Слабкий 😟";
+    text.style.color = "#ef4444";
+  } else if (score <= 4) {
+    bar.classList.add("medium");
+    text.innerText = "Середній 😐";
+    text.style.color = "#eab308";
+  } else {
+    bar.classList.add("strong");
+    text.innerText = "Надійний! 🚀";
+    text.style.color = "#22c55e";
+  }
+}
+function togglePassword() {
+  const passwordInput = document.getElementById("password");
+  const btn = document.querySelector(".toggle-btn");
+
+  if (passwordInput.type === "password") {
+    passwordInput.type = "text"; // Показуємо пароль
+    btn.innerText = "🔒"; // Змінюємо іконку на замок (або перекреслене око)
+  } else {
+    passwordInput.type = "password"; // Ховаємо пароль
+    btn.innerText = "👁️"; // Повертаємо око
+  }
 }
