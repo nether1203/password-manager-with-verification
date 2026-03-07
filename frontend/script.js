@@ -40,7 +40,7 @@ function generateOtp() {
       showStep("step2");
     })
     .catch(() => alert("Помилка зʼєднання з сервером"));
-}
+}  
 
 // Перевірка OTP
 function verifyOtp() {
