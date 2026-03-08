@@ -31,7 +31,6 @@ function generateOtp() {
       if (emailDisplay) emailDisplay.textContent = email;
 
       if (data.otp) {
-        alert(`Код: ${data.otp}`);
         const otpInput = document.getElementById("otpInput");
         if (otpInput) otpInput.value = data.otp;
       }
