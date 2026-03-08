@@ -30,6 +30,11 @@ function generateOtp() {
       const emailDisplay = document.getElementById("emailDisplay");
       if (emailDisplay) emailDisplay.textContent = email;
 
+      if (data.otp) {
+        alert(`Код: ${data.otp}`);
+        const otpInput = document.getElementById("otpInput");
+        if (otpInput) otpInput.value = data.otp;
+      }
       showStep("step2");
     })
     .catch(() => alert("Помилка зʼєднання з сервером"));
